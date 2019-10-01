@@ -1,0 +1,264 @@
+.global brainfuck
+
+format_str: .asciz "%s\n"
+char: .asciz "%c"
+
+
+
+# Your brainfuck subroutine will receive one argument:
+# a zero termianted string containing the code to execute.
+brainfuck:
+	#printing the brainfuck code that we want to execute
+	pushq %rbp
+	movq %rsp, %rbp
+
+	movq %rdi, %rsi
+
+	subq $1000000, %rsp
+	
+	movq $0, %r13
+	movq $0, %r12
+
+	movq %rsp, %r15
+
+	movq $0, %rcx
+
+	//movq $format_str, %rdi
+	//call printf
+
+	movq $0, %rax
+	movq $0, %rbx
+	movq $0, %rdx
+
+	call _loop
+
+	
+
+	movq %rbp, %rsp
+	popq %rbp
+
+	call exit
+
+	#reading every character from the string
+	_loop:
+	movb (%rsi), %cl
+
+	cmpb $0x2B, %cl
+	je _plus
+
+	cmpb $0x2D, %cl
+	je _minus
+
+	cmpb $0x2E, %cl
+	je _period
+
+	cmpb $0x2C, %cl
+	je _comma
+
+	cmpb $0x5B, %cl
+	je _leftLoop
+
+	cmpb $0x5D, %cl
+	je _rightLoop
+
+	cmpb $0x3E, %cl
+	je _forward
+
+	cmpb $0x3C, %cl
+	je _back
+
+	cmpb $0x00, %cl
+	je _zero
+
+	incq %rsi
+	jmp _loop
+
+	ret
+
+
+	
+
+	_zero:
+		movq %rbp, %rsp
+		popq %rbp
+		ret
+
+
+_plus:
+	cmpq $255, %rbx
+	je _plus255
+
+	incq %rbx
+	incq %rsi
+
+	jmp _loop
+
+	_plus255:
+	movq $0, %rbx
+	incq %rsi
+
+	jmp _loop
+	
+
+_minus:
+	cmpq $0, %rbx
+	je _minus0
+
+	decq %rbx
+	incq %rsi
+	jmp _loop
+
+	_minus0:
+	movq $255, %rbx
+	incq %rsi
+
+	jmp _loop
+	
+
+_comma:
+	movq %rsi, %R14
+	movq $0, %rax
+	movq (%rsp), %rcx
+	leaq (%rsp), %rsi
+	movq $char, %rdi
+	call scanf
+
+	movq (%rsp), %rbx
+	movq %rcx, (%rsp)
+	movq %R14, %rsi
+
+	incq %rsi
+	jmp _loop
+
+
+_period:
+	movq %rsi, %R14
+	movq $0, %rax
+	leaq (%rbx), %rsi
+	movq $char, %rdi
+	call printf
+	movq %R14, %rsi
+	incq %rsi
+	jmp _loop
+
+
+_leftLoop:
+	movq $0, %rdx
+	cmpq $0, %rbx
+	je _leftZero
+
+	cmpq %rsi, (%rsp)
+	jne _pushIndex
+
+	incq %rsi
+	jmp _loop
+
+	_pushIndex:
+	pushq %rsi
+	incq %rsi
+	jmp _loop
+
+	_leftZero:
+	movb (%rsi), %cl
+
+	cmpb $0x5B, %cl
+	je _addPar
+
+	cmpb $0x5D, %cl
+	je _removePar
+
+	incq %rsi
+
+	jmp _leftZero
+
+	
+	_addPar:
+	incq %rdx
+	incq %rsi
+	jmp _leftZero
+
+
+	_removePar:
+	decq %rdx
+	incq %rsi
+
+	cmpq $0, %rdx
+	jne _leftZero
+
+	jmp _loop
+
+
+
+_rightLoop:
+	cmp $0, %rbx
+	je _rightLoopZero
+
+	cmp $0, %rbx
+	jne _rightLoopNotZero
+
+	_rightLoopZero:
+	popq %rdx
+	movq $0, %rdx
+	incq %rsi
+	jmp _loop
+
+
+
+
+	_rightLoopNotZero:
+	movq %rsi, %R14
+	subq (%rsp), %R14
+	subq %R14, %rsi
+	incq %rsi
+	jmp _loop
+
+
+_forward:
+	cmp %r12, %r13
+	je _fwd1
+	
+	cmp %r13,%r12
+	jg _fwd2
+
+//for when R11 = R13 (RBX is the last element)
+_fwd1:
+	incq %r12
+	incq %r13
+ 
+	movq %rbx, (%r15)
+
+	addq $8, %r15
+
+	movq $0, %rbx
+
+	/*movq $0, %rax
+	movq $number, %rdi
+	movq %rsi, %r12
+	movq (%rsp), %rsi
+	call printf
+	movq %r12, %rsi*/
+
+	incq %rsi
+	jmp _loop
+	
+
+// for when R11 is greater then R13
+	_fwd2:
+	incq %r13
+
+	movq %rbx, (%r15)
+	addq $8, %r15
+	movq (%r15), %rbx
+
+	incq %rsi #inxexul - la a cata celula esti
+	jmp _loop
+
+	_back:
+	decq %R13
+	movq %rbx, (%r15)
+	subq $8, %r15
+	movq (%r15), %rbx
+	
+	incq %rsi
+	jmp _loop
+

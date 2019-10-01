@@ -1,0 +1,352 @@
+# Authors: 
+# Toma Zamfirescu - Student Number: 4948777 - NETID: tzamfirescu@tudelft.nl
+# Tudor-Alexandru Popovici - Student Number: 4812379 - NETID: tudorpopovici@tudelft.nl
+
+
+.text
+	formatStr: .asciz "The string %u %s %d %u %u %u %s %g to be printe d..\n"
+	formatStr2: .asciz "The %% string %% number 2\n"
+	string5: .asciz "%"
+
+	numberformat: .asciz "abcde d %ld"
+	format55: .asciz "format55!"
+	
+
+.data
+	position: .skip 1 # Reserve 1 byte of memory.
+
+.global main
+
+main:
+
+	pushq %rbp # PROLOGUE of the main function.
+	movq %rsp, %rbp
+
+	movq $0, %rax # Initialising parameters for the format string.
+	movq $formatStr, %rdi
+	movq $0, %rsi
+	movq $example, %rdx
+	movq $-12, %rcx
+	movq $0, %r8
+	movq $2, %r9
+	pushq $format55
+	pushq $3
+	call _print # Calling the printf implemented function.
+
+
+	movq $60, %rax # System call 60 is exit
+	movq $0, %rdi
+	syscall
+
+	movq %rbp, %rsp # EPILOGUE of the main function.
+	popq %rbp
+
+	call exit
+
+_print:
+
+	movq %rbp, %r11 # Copy the base pointer into R11
+	movq %rsp, %rbx # Copy the stack pointer into RBX
+
+	pushq %rbp # Prologue of the print subroutine
+	movq %rsp, %rbp # Prologue
+
+_beforePrint1:
+	
+	_addPushedParams: # Get the pushed parameters before calling the implemented subroutine
+
+		pushq (%r11) # Push the previously pushed parameter on the stack (above the pushed return address) 
+
+		subq $8, %r11 # Decrement the base pointer
+
+		movq %rbx, %r10 #Move the stack pointer into register R10
+
+		cmpq %r11 , %r10 # Compare the stack pointer to the base pointer
+
+		jne _addPushedParams # Loop until the base pointer is not equal to the stack pointer
+
+	pushq %r9 # Push the parameter R9 on stack
+	pushq %r8 # Push the parameter R8 on stack
+	pushq %rcx # Push the parameter RCX on stack
+	pushq %rdx # Push the parameter RDX on stack
+	pushq %rsi # Push the parameter RSI on stack
+	pushq %rdi # Push the parameter RDI on stack
+	movq $0, %rbx # Assign 0 to the number of characters in the format string.
+
+
+_loop:
+	incq %rdi # Increment the pointer to the memory address of the format string.
+	incq %rbx # Increment the total number of characters of the format string
+
+	movb (%rdi), %cl # Move the first 8 bits of register rdi to register CL. (move the character to which the pointer to the format string points)
+
+	cmpb $0x25, %cl # See if the character stored in register CL is equal to a percent sign.
+	je _equals # If it is equal, jump to a special subroutine
+
+	cmpb $0x00, %cl # See if the character stored in register CL is equal to the end of string
+	jne _loop # If it is not equal to the end of string, loop again through the format string.
+	
+
+	movq $1, %rax # Print the remaining bit from the format string.
+	movq $1, %rdi # stdout is 1
+	popq %rsi # Specify the memory address where the format string starts.
+	movq %rbx, %rdx # Specify the number of characters to print
+	syscall
+
+
+	movq %rbp, %rsp # Epilogue of the print subroutine
+	popq %rbp # Epilogue
+
+	ret
+
+_loop2: # We needed a second subroutine exactly like _loop, but without the the epilogue of the _print subroutine.
+
+	incq %rdi # Increment the pointer to the memory address of the format string.
+	incq %rbx # Increment the total number of characters of the format string
+
+	movb (%rdi), %cl # Move the first 8 bits of register rdi to register CL. (move the character to which the pointer to the format string points)
+
+	cmpb $0x25, %cl # See if the character stored in register CL is equal to a percent sign.
+	je _equals # If it is equal, jump to a special subroutine
+
+	cmpb $0x00, %cl # See if the character stored in register CL is equal to the end of string
+	jne _loop # If it is not equal to the end of string, loop again through the format string.
+	
+
+	movq $1, %rax # Print the remaining bit from the format string.
+	movq $1, %rdi
+	popq %rsi # Specify the memory address where the format string starts.
+	movq %rbx, %rdx # Specify the number of characters to print
+	syscall
+
+	ret
+
+_equals:
+	popq %rsi # Pop the memory address which points to the format string off the stack into RSI
+
+	incq %rdi # Increment the pointer to the format string
+	pushq %rdi # RDI is changed
+
+	movq $1, %rax # Print the string up until the % sign.
+	movq $1, %rdi
+	movq %rbx, %rdx # Specify the number of characters to print
+	syscall
+
+	popq %rdi # Pop the previously pushed value fo RDI
+
+	movb (%rdi), %dl # Move the first 8 bits of register rdi to register DL. (move the character to which the pointer to the format string points)
+
+	cmpb $0x64, %dl # See if the character stored in register DL is equal to "d".
+	je signed # Jump to signed subroutine
+
+	cmpb $0x75, %dl # See if the character stored in register DL is equal to "u".
+	je unsigned # Jump to unsigned subroutine
+
+	cmpb $0x73, %dl # See if the character stored in register DL is equal to "s".
+	je stringSubroutine # Jump to string subroutine
+
+	cmpb $0x25, %dl # See if the character stored in register DL is equal to "%".
+	je _percent # Jump to percent subroutine
+
+	jmp _percentElse # If the character is equal to something else, jump into percentElse.
+
+	movq $0, %rbx # Number of characters in the format string
+	pushq %rdi # Push back the rdi (pointer to memory address of the format string)
+
+	jmp _loop2 # Jump to _loop2 with the new assigned parameters
+
+	ret
+
+
+unsigned:
+	popq %rax # Popping the parameter asssigned before calling the implemented function
+	pushq %rbp # Epilogue for the unsigned subroutine
+	movq %rsp, %rbp # Epilogue
+
+	incq %rdi # Point to the next character in the format string
+
+	movq $0, %rbx # Assign 0 to rbx
+
+_loopUnsigned:
+
+	movq $0, %rdx # Assign 0 to RDX
+	movq $10, %rcx # Assign 10 to RCX to divide by 10
+	divq %rcx #Divide the parameter by 10 so you get the digit
+
+	addq $48, %rdx # Add 48 so you get the desired ASCII code for the digit
+
+	incq %rbx # Increment the number of digits
+
+	pushq %rdx # Push the calculated ASCII code of the digit on the stack
+
+	cmpq $0, %rax # Divide until the quotient is 0
+
+	jne _loopUnsigned # Loop until the quotient is 0
+
+_printUnsigned:
+
+	popq %rdx # Pop the calculated ASCII code of the digit from the stack
+
+	movq $position, %rcx # Move to RCX the memory address of "position" (memory place where 1 byte is reserved since 1 character takes 1 byte)
+
+	movq %rdx, (%rcx) # Move the ASCII code to memory location of "position" (each time the value is overwritten)
+
+	pushq %rbx # Push RBX on the stack because its value can be changed
+
+	pushq %rdi # Rdi is changed
+
+	movq $1, %rax # System call 1 is write
+	movq $1, %rdi # StdOut is 1
+	movq $position, %rsi # Start address
+	movq $1, %rdx # Number of bytes
+	syscall
+
+	popq %rdi # Pop back the pushed value of RDI
+
+	popq %rbx # Pop back the pushed value of RBX
+	decq %rbx # Decrement the number of digits of the parameter
+
+	cmpq $0, %rbx # Compare the number of digits with 0
+	jne _printUnsigned # Loop until the number of digits reaches 0
+
+	movq %rbp, %rsp # Epilogue of the subroutine
+	popq %rbp # Epilogue
+
+	movq $0, %rbx # Number of characters in the format string
+	pushq %rdi # Push back the rdi (pointer to memory address of the format string)
+
+	jmp _loop2 # Jump to _loop2 with the new assigned parameters
+	ret
+
+
+signed:
+	popq %rax # Pop off the parameter assigned before calling the implemented printf subroutine
+	pushq %rbp # Prologue of the signed subroutine
+	movq %rsp, %rbp # Prologue
+
+	incq %rdi # Increment the memory address pointer of the format string
+
+	movq $0, %rbx # Assign 0 to RBX (number of digits)
+	cmpq $0, %rax # Compare RAX to 0
+	jge unsigned # If RAX is greater than 0 use the unsigned subroutine, else use the signed one.
+
+	movq %rax, %rbx # Transform RAX into its positive correspondent. (copy rax into rbx)
+	subq %rax, %rax # Subtract RAX from RAX so the result is 0
+	subq %rbx, %rax # Add to 0 the previous value of rax (now RAX is positive.)
+
+	movq $0, %rbx # Assign 0 to RBX (number of digits of the parameter)
+
+_loopSigned:
+
+	movq $0, %rdx # Assign 0 to RDX (the remainder)
+	movq $10, %rcx # Assign 10 to RCX to divide by 10
+	divq %rcx #Divide the parameter by 10 so you get the digit
+
+
+	addq $48, %rdx # Obtain the ASCII code of the divided digit
+
+	incq %rbx # Increment the total number of digits of the parameter
+
+	pushq %rdx # Push the ASCII code of the divided digit on the stack
+
+	cmpq $0, %rax # Compare 0 to RAX
+
+	jne _loopSigned # If the quotient is not equal to 0 loop.
+
+_printNegativeSign:
+
+	movq $0x2D, %rdx # Load the ASCII code of the minus sign into RDX
+	movq $position, %rcx # Move to RCX the memory address of "position" (memory place where 1 byte is reserved since 1 character takes 1 byte)
+	movq %rdx, (%rcx) # Move the ASCII code of the minus sign to memory address of positon (value is overwritten)
+
+	pushq %rbx # Push the value of RBX on the stack (its value can be changed)
+
+	pushq %rdi # RDI is changed
+
+	movq $1, %rax # System call 1 is write
+	movq $1, %rdi # Stdout is 1
+	movq $position, %rsi # Start address
+	movq $1, %rdx # Number of bytes
+	syscall
+
+	popq %rdi # Pop back the pushed value of RDI
+	popq %rbx # Pop back the pushed value of RBX
+
+_printSigned:
+
+	popq %rdx # Pop the ASCII code of the digit off the stack
+
+	movq $position, %rcx # Move to RCX the memory address of "position" (memory place where 1 byte is reserved since 1 character takes 1 byte)
+
+	movq %rdx, (%rcx) # Move the ASCII code to memory location of "position" (each time the value is overwritten)
+
+	pushq %rbx # RBX is changed
+
+	pushq %rdi # Rdi is changed
+
+	movq $1, %rax # System call 1 is write
+	movq $1, %rdi # StdOut is 1
+	movq $position, %rsi # Start address
+	movq $1, %rdx # Number of bytes
+	syscall
+
+	popq %rdi # Pop back the pushed value of RDI
+
+	popq %rbx # Pop back the pushed value of RBX
+	decq %rbx # Decrement the total number of digits of the parameter
+
+	cmpq $0, %rbx # Compare 0 to RBX
+	jne _printSigned # If the total number of digits is not equal to 0 loop.
+
+	movq %rbp, %rsp # Epilogue of the signed subroutine
+	popq %rbp #Epilogue
+
+	movq $0, %rbx # Assign 0 to the total number of characters to print
+	pushq %rdi # Push back the rdi (pointer to memory address of the format string)
+
+	jmp _loop2 # Jump to _loop2 with the new assigned parameters
+	ret
+
+	
+stringSubroutine:
+	popq %rcx # Pop the pushed value of the memory address specified before the implemented printf subroutine is called
+
+	incq %rdi # Increment the pointer to the memory address of the format string.
+
+	pushq %rdi # RDI is changed
+
+	movq %rcx, %rdi # Specify the memory address of the format string for the implemented printf subroutine
+	call _print # Call the implemented printf subroutine
+	popq %rdi # Pop the RDI 
+
+
+	movq $0, %rbx # Number of characters in the format string
+	pushq %rdi # Push back the rdi (pointer to memory address of the format string)
+	jmp _loop2 # Jump to _loop2 with the new assigned parameters
+
+	ret
+
+_percent:
+	incq %rdi # Increment the memory address of the format string
+	pushq %rdi # RDI is changed
+	movq $string5, %rdi
+	call _print # Call the implemented printf subroutine
+	popq %rdi # Pop the pushed value of RDI
+
+	movq $0, %rbx # Number of characters in the format string
+	pushq %rdi # Push back the rdi (pointer to memory address of the format string)
+	jmp _loop2 # Jump to _loop2 with the new assigned parameters
+
+	ret
+
+_percentElse:
+	pushq %rdi # RDI is changed
+	movq $string5, %rdi # Print a percent sign
+	call _print # Call the implemented printf subroutine
+	popq %rdi # Pop off the pushed RDI value
+
+	movq $0, %rbx # Number of characters in the format string
+	pushq %rdi # Push back the rdi (pointer to memory address of the format string)
+	jmp _loop2 # Jump to _loop2 with the new assigned parameters
+
+	ret
